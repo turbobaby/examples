@@ -67,11 +67,11 @@ int nousers(char buffer[], int *indexOfLastUser){
 	// read up to ':' which means the last of the users
 	for(n = 0; n < 170; n++){
 		if(buffer[n] == ',' || buffer[n] == ';' || buffer[n] == '/' || buffer[n] == '.'){ buffer[n] = ' '; }
-		if(buffer[n+1] == ',' || buffer[n+1] == ';' || buffer[n+1] == '/' || buffer[n+1] == '.'){ buffer[n+1] = ' '; } 
+		if(buffer[n+1] == ',' || buffer[n+1] == ';' || buffer[n+1] == '/' || buffer[n+1] == '.'){ buffer[n+1] = ' '; }
 		if(n > 0 && buffer[n-1] != ' ' && buffer[n] == ':'){
-			buffer[n] = ' '; 
-			*indexOfLastUser = n; 
-			return users; 
+			buffer[n] = ' ';
+			*indexOfLastUser = n;
+			return users;
 		}
 		else if((buffer[n] != ' ' && buffer[n+1] == ' ')){ ++users; }
 	}
@@ -105,19 +105,19 @@ int main(int argc, char* argv[]){
 		return 2;
 	}
 	
-	if(strcmp(argv[3], "all") == 0){ 
-		printf("Username (all) is a keyword please pick a different username.\n"); 
+	if(strcmp(argv[3], "all") == 0){
+		printf("Username (all) is a keyword please pick a different username.\n");
 		return 3;
 	}
 	
-	if(strlen(argv[3]) >= 16){ 
-		printf("Username %s is too long.\n", argv[3]); 
+	if(strlen(argv[3]) >= 16){
+		printf("Username %s is too long.\n", argv[3]);
 		return 3;
 	}
 	
 	portno = atoi(argv[2]);
 	
-	srvsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	srvsock = socket(AF_INET, SOCK_STREAM, 0);
 	if(srvsock < 0) { syserr("can't open socket"); }
 
 	memset(&serv_addr, 0, sizeof(serv_addr));
@@ -161,24 +161,24 @@ int main(int argc, char* argv[]){
 				do{
 					memset(buffer, 0, sizeof(buffer));
 					while(fgets(buffer, sizeof(buffer), stdin) == NULL){
-                        //printf("Enter some text\n"); 
+                        //printf("Enter some text\n");
                     }
 					no_users = nousers(buffer, &indexOfLastUser);
 					
-					memset(quit, 0, sizeof(quit)); 
-					for(n = 0; n < 170; n++){ 
+					memset(quit, 0, sizeof(quit));
+					for(n = 0; n < 170; n++){
 						if(buffer[n] == 'q'){
 							memcpy(quit, buffer+n, sizeof(quit));	// get the first 4 chars "quit"?
-							break; 
-						} 
+							break;
+						}
 					}
 					if(strcmp(quit, "quit") == 0){ memcpy(buffer, quit, sizeof(quit)); bool_quit = 1; break; }
 					
 					if(no_users == 0){ printf("@ Missing colon (:). after inputting user name(s).\n"); printf("@ "); }
-					if(no_users > 10){ 
-						no_users = 0; 
-						printf("@ Client can only send to 10 specific users.\n"); 
-						printf("@ "); 
+					if(no_users > 10){
+						no_users = 0;
+						printf("@ Client can only send to 10 specific users.\n");
+						printf("@ ");
 					}
 				}while(no_users <= 0);
 				

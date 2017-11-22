@@ -1,7 +1,3 @@
-/*
-* Renan Santana / PID: 4031451 / HW3 / DUE: NOV 13, 2014
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,14 +6,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-//
 #include <errno.h>
-//
 
 void syserr(char *msg) { perror(msg); exit(-1); }
 
-/* 
- *	Server receives format from discription. 
+/*
+ *	Server receives format from discription.
  * ie. "msg @ user-names"
  * This method splits from the '@' into allUsers and buffer
  */
@@ -28,7 +22,7 @@ void splitBuffer(char *buffer, char *allUsers){
 	memset(buffer+n, 0, 1024);
 }
 
-/* 
+/*
  *	When a user leaves we need to clean its spot
  * ie. We hash to the user's position and clean the memory
  */
@@ -42,7 +36,7 @@ void cleanBoth(char userNameTable[][16], int users[], char userName[], int socke
 }
 
 /*
- * Note: strtok first needs a pointer, say a string after that 
+ * Note: strtok first needs a pointer, say a string after that
  * 	   we just call it with NULL. If strtok returns NULL, it read
  *			the last token in the string.
  * This method returns 1 if we have another user-name.
@@ -162,7 +156,7 @@ int main(int argc, char *argv[]){
 	memset(userNameTable, 0, sizeof(char)*MAX_USERS*16);
 	/*Users table*/
 	
-	if(argc != 2) { 
+	if(argc != 2) {
 		if(argc == 1){
 			portno = 5555;
 		}
@@ -174,20 +168,29 @@ int main(int argc, char *argv[]){
 	else
 		portno = atoi(argv[1]);
 
-	srvsock = socket(AF_INET, SOCK_STREAM, 0); 
-	if(srvsock < 0){ syserr("Err 0: Can't Open Socket"); }
+	srvsock = socket(AF_INET, SOCK_STREAM, 0);
+	if (srvsock < 0){
+        syserr("Err 0: Can't Open Socket");
+    }
 	printf("Create server socket.\n");
+
+    int err, sock_reuse = 1;
+    err = setsockopt(srvsock, SOL_SOCKET, SO_REUSEADDR,
+                     (char *)&sock_reuse, sizeof(sock_reuse));
+    if (err != 0){
+        syserr("Err 0: Can't reuse Socket port");
+    }
 
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(portno);
 
-	if(bind(srvsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) 
+	if(bind(srvsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
 		syserr("Err 0: Can't Bind To Port.");
 	printf("Bind server socket to port#: %d.\n", portno);
 
-	listen(srvsock, 5); 
+	listen(srvsock, 5);
 
 	FD_ZERO(&readset);
 	FD_SET(srvsock, &readset);
@@ -209,18 +212,18 @@ int main(int argc, char *argv[]){
 		      addrlen = sizeof(clt_addr);
 		      peersock = accept(srvsock, (struct sockaddr*)&clt_addr, &addrlen);
 		      /*** NEW CONNECTION ***/
-		      
+
 		      if (peersock < 0) { printf("Error in accept(): %s\n", strerror(errno)); }
 		      else {
 		         bzero(buffer, 0);
 		         bzero(userName,0);
-		         
+
 		         recv(peersock, buffer, MAX_BUFFER_SIZE, 0);	// recv name
 		         sscanf(buffer, "%s", userName);					// parse name
-		         
+
 		         // try put socket in table
 		         int insertSock = setPeerSock(users, userName, peersock);
-		         
+
 		         if(!insertSock){			// socket was not inserted
 			         printf("DUPLICATE USER: %s\n", userName);
 		         	bzero(buffer, 0);
@@ -231,19 +234,19 @@ int main(int argc, char *argv[]){
 					else{							// socket was inserted
 						printf("NEW USER: %s\n", userName);
 						setName(userNameTable, peersock, userName);	// put name in a table
-				      
+
 				      /* send all that are connected to the new arrival*/
 				      getUsersConnected(userNameTable, tempBuf);
 				      strcpy(buffer, "@ ");
 				      strcat(buffer, tempBuf);
 				      /* send all that are connected to the new arrival*/
-				      
+
 				      n = send(peersock, buffer, MAX_BUFFER_SIZE, 0);
 				      if(n < 0){ printf("Can't send to client\n"); }
-				      
+
 				      FD_SET(peersock, &readset);
 			         maxfd = (maxfd < peersock) ? peersock : maxfd;
-			         
+
 			         /* send all that are connected to everyone else*/
 			         memset(buffer, 0, sizeof(buffer));
 						strcpy(buffer, "join  > ");
@@ -309,16 +312,16 @@ int main(int argc, char *argv[]){
 						// loop the users
 						do{
 							// if specific user: get the associated socket
-							if(!sendAll){ 
-								tempPeerReq = getPeerSock(users, userName); 
+							if(!sendAll){
+								tempPeerReq = getPeerSock(users, userName);
 								if(tempPeerReq == peerReq){ continue; }
 							}
 							
 							// send size can either be all or 1
 							for(j = 0; j < sendSize; j++){
-								if(sendAll){ 
-									if(users[j] == -1){ continue; } 
-									tempPeerReq = users[j]; 
+								if(sendAll){
+									if(users[j] == -1){ continue; }
+									tempPeerReq = users[j];
 									if(tempPeerReq == peerReq){ continue; }
 								}
 								
@@ -330,14 +333,14 @@ int main(int argc, char *argv[]){
 									result1 = send(peerReq, tempBuf, MAX_BUFFER_SIZE, 0);
 									printf("USER IS NOT CONNECTED: %s\n", userName);
 								}
-								else{ 
+								else{
 									printf("FROM: %s / TO: %s / SEND MSG: %s\n", senderName, userName, distributeMSG);
-									result1 = send(tempPeerReq, distributeMSG, MAX_BUFFER_SIZE, 0); 
+									result1 = send(tempPeerReq, distributeMSG, MAX_BUFFER_SIZE, 0);
 								}
 								
-								// for what ever reason we cant reach the client we 
+								// for what ever reason we cant reach the client we
 								// need to update : not connected
-						      if (result1 == 0){ 
+						      if (result1 == 0){
 						      	memset(buffer, 0, sizeof(buffer));
 									strcpy(buffer, "leave: ");
 									getName(userNameTable, userName, peerReq);
