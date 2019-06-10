@@ -14,6 +14,9 @@
 #include <errno.h>
 //
 
+const int MAX_BUFFER_SIZE = 1024;
+const int FD_STDIN = 0;		/* Watch stdin (fd 0) to see when it has input. */
+
 void syserr(char* msg) { perror(msg); exit(-1); }
 
 void cltFormat(char buffer[]){
@@ -79,8 +82,6 @@ int nousers(char buffer[], int *indexOfLastUser){
 }
 
 int main(int argc, char* argv[]){
-	const int MAX_BUFFER_SIZE = 1024;
-	const int FD_STDIN = 0;		/* Watch stdin (fd 0) to see when it has input. */
 	int srvsock, portno, n, result, indexOfLastUser, no_users, bool_quit = 0;
 	struct hostent* server;
 	struct sockaddr_in serv_addr;
@@ -100,111 +101,141 @@ int main(int argc, char* argv[]){
 	}
 	
 	server = gethostbyname(argv[1]);
-	if(!server) {
+	if (server == NULL) {
 		fprintf(stderr, "ERROR: no such host: %s\n", argv[1]);
 		return 2;
 	}
 	
-	if(strcmp(argv[3], "all") == 0){
+	if (strcmp(argv[3], "all") == 0) {
 		printf("Username (all) is a keyword please pick a different username.\n");
 		return 3;
 	}
 	
-	if(strlen(argv[3]) >= 16){
-		printf("Username %s is too long.\n", argv[3]);
+	if (strlen(argv[3]) >= 16) {
+		printf("Username %s is too long. Maximal length is 15.\n", argv[3]);
 		return 3;
 	}
 	
 	portno = atoi(argv[2]);
 	
 	srvsock = socket(AF_INET, SOCK_STREAM, 0);
-	if(srvsock < 0) { syserr("can't open socket"); }
+	if (srvsock < 0) {
+		syserr("can't open socket");
+	}
 
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr = *((struct in_addr*)server->h_addr);
-	serv_addr.sin_port = htons(portno);
+	serv_addr.sin_addr   = *((struct in_addr*)server->h_addr);
+	serv_addr.sin_port   = htons(portno);
 
-	if(connect(srvsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+	if (connect(srvsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
 		syserr("Can't connect to server");
 	
 	printf("Connection to %s:%s established. Now awaiting commands.\n", argv[1], argv[2]);
 	
 	// send to server the username we picked
-	bzero(buffer, 0);
+	memset(buffer, 0, sizeof(buffer));
 	strcpy(buffer, argv[3]);
 	n = send(srvsock, buffer, MAX_BUFFER_SIZE, 0);
-	if(n < 0){ syserr("Can't send"); }
+	if (n < 0) {
+		syserr("Can't send");
+	}
 	
 	// recv a comfirmation: name is valid
-	bzero(buffer, 0);
+	memset(buffer, 0, sizeof(buffer));
 	n = recv(srvsock, buffer, MAX_BUFFER_SIZE, 0);
-	if(n < 0){ syserr("Can't receive from client"); }
+	if (n < 0){
+		syserr("Can't receive from client");
+	}
 	
 	// if valid display all that are connected // else terminate
-	if(buffer[0] != '\0'){ printf("%s\n", buffer); }
-	else{ close(srvsock); printf(">> %s << already exist. Please choose a different one.\n", argv[3]); return 0; }
+	if (buffer[0] != '\0'){
+		printf("%s\n", buffer);
+	} else {
+		close(srvsock);
+		printf(">> %s << already exist. Please choose a different one.\n", argv[3]);
+		return 0;
+	}
 	
 	printf("@ ");
 	fflush(stdout);
 	
-	while(1){
+	while (1) {
 		FD_ZERO(&set);				// reset flags
 		FD_SET(srvsock, &set);
 		FD_SET(FD_STDIN, &set);
-		// wait for a event
-		result = select(srvsock+1, &set, 0, 0, &time);
+		// wait for an event
+		result = select(srvsock + 1, &set, NULL, NULL, &time);
 		
 		// input event
-		if(result > 0){
-			if(FD_ISSET(FD_STDIN, &set)){
-				do{
+		if (result > 0) {
+			if (FD_ISSET(FD_STDIN, &set)){
+				do {
 					memset(buffer, 0, sizeof(buffer));
-					while(fgets(buffer, sizeof(buffer), stdin) == NULL){
-                        //printf("Enter some text\n");
-                    }
+					while (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+						//printf("Enter some text\n");
+					}
 					no_users = nousers(buffer, &indexOfLastUser);
-					
 					memset(quit, 0, sizeof(quit));
-					for(n = 0; n < 170; n++){
-						if(buffer[n] == 'q'){
+					for (n = 0; n < 170; n++){
+						if (buffer[n] == 'q'){
 							memcpy(quit, buffer+n, sizeof(quit));	// get the first 4 chars "quit"?
 							break;
 						}
 					}
-					if(strcmp(quit, "quit") == 0){ memcpy(buffer, quit, sizeof(quit)); bool_quit = 1; break; }
+					if (strcmp(quit, "quit") == 0){
+						memcpy(buffer, quit, sizeof(quit));
+						bool_quit = 1;
+						break;
+					}
 					
-					if(no_users == 0){ printf("@ Missing colon (:). after inputting user name(s).\n"); printf("@ "); }
-					if(no_users > 10){
+					if (no_users == 0) {
+						printf("@ Missing colon (:). after inputting user name(s).\n");
+						printf("@ ");
+					}
+					if (no_users > 10) {
 						no_users = 0;
 						printf("@ Client can only send to 10 specific users.\n");
 						printf("@ ");
 					}
-				}while(no_users <= 0);
+				} while(no_users <= 0);
 				
-				if(!bool_quit){ srvFormat(buffer, &indexOfLastUser); }
+				if (!bool_quit) {
+					srvFormat(buffer, &indexOfLastUser);
+				}
 				
 				// send the msg
 				n = send(srvsock, buffer, MAX_BUFFER_SIZE, 0);
-				if(n < 0){ syserr("Can't send"); }
+				if (n < 0) {
+					syserr("Can't send");
+				}
 				
-				if(bool_quit){ break; }
+				if (bool_quit) {
+					break;
+				}
 			}
 			
 			if(FD_ISSET(srvsock, &set)){
-				bzero(buffer, 0);
+				memset(buffer, 0, sizeof(buffer));
 				n = recv(srvsock, buffer, MAX_BUFFER_SIZE, 0);
-				if(n <= 0){ break; }
+				if (n <= 0) {
+					break;
+				}
 				
 				memset(leave, 0, sizeof(leave));
 				memset(join, 0, sizeof(join));
 				
-				if(buffer[0] == 'l'){ memcpy(leave, buffer, sizeof(leave)); }
-				else if(buffer[0] == 'j'){ memcpy(join, buffer, sizeof(join)); }
+				if(buffer[0] == 'l') {
+					memcpy(leave, buffer, sizeof(leave));
+				} else if(buffer[0] == 'j') {
+					memcpy(join, buffer, sizeof(join));
+				}
 				
-				if(!(strcmp(leave, "leave") == 0 || strcmp(join, "join") == 0)){ cltFormat(buffer); }
+				if (!(strcmp(leave, "leave") == 0 || strcmp(join, "join") == 0)) {
+					cltFormat(buffer);
+				}
 				
-				printf("%s\n", buffer);		// output
+				printf("%s\n", buffer);	// output
 			}
 			printf("@ ");
 			fflush(stdout);
